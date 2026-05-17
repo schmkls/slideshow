@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Output / generated
+*.mp4
+output/
+frames/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Dev work files
+todo.md
+.test

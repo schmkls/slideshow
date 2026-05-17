@@ -1,0 +1,86 @@
+"""Step: encode a folder of frames into an MP4.
+
+In: a folder of images in ``discover`` order (any names or numbering;
+gaps are fine — order is whatever ``discover`` returns). Out: an H.264 MP4.
+
+A video has no alpha and one fixed size, so this step flattens each frame
+onto black and centers it on a canvas big enough for the largest frame —
+that's the only normalization an encoder inherently has to do.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from PIL import Image
+
+from .images import discover
+
+
+def round_up_to_even(n: int) -> int:
+    return n + (n % 2)
+
+
+def _concat_escape(path: Path) -> str:
+    """Absolute path quoted for an ffmpeg concat ``file`` line."""
+    return str(path.resolve()).replace("'", "'\\''")
+
+
+def run(input_dir: Path, output_video: Path, *, fps: int = 10) -> int:
+    """Encode the frames in ``input_dir``. Returns frame count, 0 on failure."""
+    frames = discover(input_dir)
+    if not frames:
+        return 0
+
+    sizes = [Image.open(f).size for f in frames]
+    canvas_w = round_up_to_even(max(w for w, _h in sizes))
+    canvas_h = round_up_to_even(max(h for _w, h in sizes))
+
+    # Feed ffmpeg the explicit ordered file list (concat demuxer) instead of a
+    # ``%05d.png`` pattern: the image2 demuxer is a strict numeric counter that
+    # stops at the first missing index, so any gap/rename silently truncates the
+    # video. The concat demuxer just reads the files we hand it, in order.
+    per_frame = 1 / fps
+    lines = ["ffconcat version 1.0"]
+    for f in frames:
+        lines.append(f"file '{_concat_escape(f)}'")
+        lines.append(f"duration {per_frame:.6f}")
+    # concat ignores the last entry's duration unless the file is repeated.
+    lines.append(f"file '{_concat_escape(frames[-1])}'")
+
+    output_video.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".ffconcat", delete=False
+    ) as listf:
+        listf.write("\n".join(lines) + "\n")
+        list_path = Path(listf.name)
+
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-f", "lavfi",
+        "-i", f"color=c=black:s={canvas_w}x{canvas_h}:r={fps}",
+        "-f", "concat", "-safe", "0",
+        "-i", str(list_path),
+        "-filter_complex",
+        f"[1:v]fps={fps},format=rgba[fg];"
+        "[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,format=yuv420p",
+        "-c:v", "libx264",
+        "-crf", "18",
+        "-movflags", "+faststart",
+        str(output_video),
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+    except FileNotFoundError:
+        print("ffmpeg not found on PATH", file=sys.stderr)
+        return 0
+    except subprocess.CalledProcessError as e:
+        print(f"ffmpeg failed (exit {e.returncode})", file=sys.stderr)
+        return 0
+    finally:
+        list_path.unlink(missing_ok=True)
+    print(f"wrote {output_video} ({len(frames)} frames @ {fps} fps)")
+    return len(frames)
