@@ -57,10 +57,10 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `animate`    | `--effect` | *(required:* `fade-background`*)* |
-|              | `--frames` | `30` |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `video`      | `--fps` | `10` |
+|              | `--fade` | `0` (frames per dissolve; use with `animate`) |
 
 ## User stories (how to compose the steps)
 
@@ -77,8 +77,8 @@ slideshow video      ./halo     out.mp4
 slideshow silhouette ./photos   ./halo
 
 # Animate: fade each photo's background in, then make a video
-slideshow animate ./photos      ./frames --effect fade-background --frames 30
-slideshow video   ./frames      out.mp4
+slideshow animate ./photos      ./frames --effect fade-background
+slideshow video   ./frames      out.mp4 --fade 30
 
 # Center on faces only (instead of the whole subject)
 slideshow center  ./photos    ./centered --target faces
@@ -103,11 +103,14 @@ compose in any order — `center` finds the subject itself whether or not
   centers it on both axes of the canvas. With `--target faces` it centers on
   detected faces instead, using OpenCV's res10 face detector. The letterbox margin shared
   by *every* frame is then cropped off uniformly (even-rounded for h264).
-- **animate** — detects the subject once per photo, then expands that one
-  photo into `--frames` frames (a clip). `fade-background` keeps the subject
-  solid while ramping the non-subject background from invisible to fully
-  opaque, so the photo "develops" around the subject. Each photo's clip is
-  concatenated, so the result chains straight into `video`.
+- **animate** — detects the subject once per photo and emits the *two*
+  keyframes of its clip (start and end). `fade-background` writes the subject
+  on black, then the full photo; dissolved by `video --fade`, the subject
+  stays solid while the background "develops" in. A fade is a linear dissolve
+  between its endpoints, so two stills per photo carry the whole clip —
+  `video` synthesises the in-between frames, which is what makes this fast
+  (no per-frame images written or re-read).
 - **video** — flattens each frame onto black, centers it on a canvas sized
-  to the largest frame, and stitches them with `ffmpeg`
-  (`libx264`, CRF 18, faststart).
+  to the largest frame, and stitches them with `ffmpeg` (`libx264`, CRF 18,
+  faststart). With `--fade N` it reads the folder as `(start, end)` pairs and
+  cross-dissolves each pair over `N` frames instead of showing one per image.

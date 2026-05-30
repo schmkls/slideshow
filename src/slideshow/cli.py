@@ -56,8 +56,6 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("output_dir", type=Path)
     a.add_argument("--effect", required=True, choices=tuple(animate.EFFECTS),
                    help="Animation effect to apply to each photo.")
-    a.add_argument("--frames", type=int, default=30,
-                   help="Number of frames each photo expands into.")
     a.add_argument("--target", choices=("subject", "faces"), default="subject",
                    help="What to detect: whole subject (rembg) or faces only.")
     a.add_argument("--alpha-thresh", type=int, default=16,
@@ -69,6 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("input_dir", type=Path)
     v.add_argument("output_video", type=Path)
     v.add_argument("--fps", type=int, default=10, help="Frames per second.")
+    v.add_argument("--fade", type=int, default=0,
+                   help="Cross-dissolve each (start, end) input pair over N "
+                        "frames (0: each image is one frame). Use with animate.")
 
     return p
 
@@ -103,7 +104,6 @@ def main(argv: list[str] | None = None) -> int:
         kept = animate.run(
             args.input_dir, args.output_dir,
             effect=args.effect,
-            frames=args.frames,
             alpha_thresh=args.alpha_thresh,
             model=args.model,
             target=args.target,
@@ -111,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if kept else 1
 
     if args.command == "video":
-        kept = video.run(args.input_dir, args.output_video, fps=args.fps)
+        kept = video.run(args.input_dir, args.output_video,
+                         fps=args.fps, fade=args.fade)
         return 0 if kept else 1
 
     return 2

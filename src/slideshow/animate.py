@@ -1,17 +1,21 @@
-"""Step: expand each photo into an animated clip of frames.
+"""Step: turn each photo into the two keyframes of an animated clip.
 
-In: a folder of photos. Out: a folder of ``NNNNN.png`` frames where *every*
-input photo becomes ``frames`` consecutive frames — an animation. Played in
-order (via the ``video`` step) it's a slideshow of animated clips.
+In: a folder of photos. Out: a folder of ``NNNNN.png`` stills — *two* per
+photo, the start and end of a fade. ``video --fade N`` cross-dissolves each
+pair into an ``N``-frame clip, so the animation is built at encode time
+instead of being materialised as every in-between frame here.
 
-This is the one place the "turn one image into many frames" concern lives.
 The subject is detected once per photo (the model is the expensive part);
-each effect then cheaply derives ``frames`` frames from that one detection.
+the effect then derives the two endpoints from that one detection. A fade is
+a *linear cross-dissolve* between its endpoints, so those two stills carry all
+the information the clip needs — writing the in-between frames here would just
+re-encode the same pixels ``N`` times (and the ``video`` step would re-read
+them all). Keeping the clip as its two endpoints is the whole speedup.
 
 Effects (chosen with ``--effect``):
 
-- ``fade-background`` — the subject stays fully visible while the non-subject
-  background ramps from invisible to full opacity across the clip.
+- ``fade-background`` — start: the subject on black; end: the full photo.
+  Dissolved, the subject stays solid while the background fades in.
 
 More effects (``fade-subject``, ``place``) slot into ``EFFECTS`` as we add them.
 """
@@ -19,7 +23,6 @@ More effects (``fade-subject``, ``place``) slot into ``EFFECTS`` as we add them.
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
 from pathlib import Path
 
 import numpy as np
@@ -30,33 +33,27 @@ from .images import discover, load_upright, save_png
 from .segmentation import MaskProvider, Segmenter
 
 
-def _ramp(frames: int) -> Iterator[float]:
-    """Yield ``frames`` progress values from 0.0 to 1.0 inclusive."""
-    if frames <= 1:
-        yield 1.0
-        return
-    for i in range(frames):
-        yield i / (frames - 1)
-
-
 def fade_background(
-    base: np.ndarray, mask: np.ndarray, frames: int
-) -> Iterator[Image.Image]:
-    """Subject stays solid; the background fades in over the clip.
+    base: np.ndarray, mask: np.ndarray
+) -> tuple[Image.Image, Image.Image]:
+    """Endpoints of the background fade-in.
 
     ``base`` is the photo as an ``(H, W, 3)`` RGB array; ``mask`` is the soft
-    subject alpha (``0..255``, high on the subject). Per pixel the output alpha
-    is ``mask + (255 - mask) * t``: at ``t=0`` only the subject shows (soft
-    edges kept), at ``t=1`` the whole photo is opaque.
+    subject alpha (``0..255``, high on the subject). Returns ``(start, end)``:
+
+    - ``start`` — the subject composited on black (``base * mask/255``): only
+      the subject shows, with its soft edges kept.
+    - ``end`` — the full photo.
+
+    A linear dissolve ``start*(1-t) + end*t`` equals ``base * alpha_t/255`` with
+    ``alpha_t = mask + (255-mask)*t`` exactly: the subject stays solid while the
+    background ramps from invisible to fully opaque.
     """
-    m = mask.astype(np.float32)
-    inv = 255.0 - m
-    for t in _ramp(frames):
-        alpha = (m + inv * t).round().clip(0, 255).astype(np.uint8)
-        yield Image.fromarray(np.dstack([base, alpha]), "RGBA")
+    subject = (base * mask[:, :, None].astype(np.uint16) // 255).astype(np.uint8)
+    return Image.fromarray(subject, "RGB"), Image.fromarray(base, "RGB")
 
 
-# effect name -> function(base_rgb, subject_mask, frames) -> frames iterator
+# effect name -> function(base_rgb, subject_mask) -> (start_img, end_img)
 EFFECTS = {
     "fade-background": fade_background,
 }
@@ -67,21 +64,21 @@ def run(
     output_dir: Path,
     *,
     effect: str,
-    frames: int = 30,
     alpha_thresh: int = 16,
     model: str = "u2net",
     target: str = "subject",
 ) -> int:
-    """Process a directory. Returns the total number of frames written.
+    """Process a directory. Returns the number of stills written (2 per photo).
 
-    Each photo is detected once (whole ``subject`` or ``faces`` only) and then
-    expanded into ``frames`` frames by ``effect``.
+    Each photo is detected once (whole ``subject`` or ``faces`` only) and turned
+    into its clip's two keyframes by ``effect``; ``video --fade N`` expands each
+    pair into the animation.
     """
     photos = discover(input_dir)
     if not photos:
         return 0
 
-    make_frames = EFFECTS[effect]
+    make_endpoints = EFFECTS[effect]
     provider: MaskProvider = (
         FaceDetector() if target == "faces" else Segmenter(model)
     )
@@ -99,11 +96,10 @@ def run(
             print(f"{src.name}: no {what} detected, skipped", file=sys.stderr)
             continue
         base = np.array(img.convert("RGB"))
-        for frame in make_frames(base, mask, frames):
+        for frame in make_endpoints(base, mask):
             save_png(frame, output_dir / f"{written:05d}.png")
             written += 1
-        print(f"[{idx + 1}/{len(photos)}] {src.name} -> {frames} frames",
-              flush=True)
+        print(f"[{idx + 1}/{len(photos)}] {src.name} -> 2 keyframes", flush=True)
 
     if written == 0:
         print("no frames produced", file=sys.stderr)
