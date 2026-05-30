@@ -39,6 +39,7 @@ With the venv activated:
 ```sh
 slideshow silhouette <in_dir>  <out_dir>   # white halo around subject (keeps background)
 slideshow center     <in_dir>  <out_dir>   # scale + center on a canvas
+slideshow animate    <in_dir>  <out_dir>   # expand each photo into an animated clip
 slideshow video      <in_dir>  <out.mp4>   # encode frames to MP4
 ```
 
@@ -53,6 +54,10 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--subject-frac` | `0.2` |
 |              | `--background` | `transparent` (or `black`) |
 |              | `--no-letterbox-crop` | off |
+|              | `--target` | `subject` (or `faces`) |
+|              | `--alpha-thresh` / `--model` | `16` / `u2net` |
+| `animate`    | `--effect` | *(required:* `fade-background`*)* |
+|              | `--frames` | `30` |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `video`      | `--fps` | `10` |
@@ -70,6 +75,10 @@ slideshow video      ./halo     out.mp4
 
 # Just add silhouettes
 slideshow silhouette ./photos   ./halo
+
+# Animate: fade each photo's background in, then make a video
+slideshow animate ./photos      ./frames --effect fade-background --frames 30
+slideshow video   ./frames      out.mp4
 
 # Center on faces only (instead of the whole subject)
 slideshow center  ./photos    ./centered --target faces
@@ -94,6 +103,11 @@ compose in any order — `center` finds the subject itself whether or not
   centers it on both axes of the canvas. With `--target faces` it centers on
   detected faces instead, using OpenCV's res10 face detector. The letterbox margin shared
   by *every* frame is then cropped off uniformly (even-rounded for h264).
+- **animate** — detects the subject once per photo, then expands that one
+  photo into `--frames` frames (a clip). `fade-background` keeps the subject
+  solid while ramping the non-subject background from invisible to fully
+  opaque, so the photo "develops" around the subject. Each photo's clip is
+  concatenated, so the result chains straight into `video`.
 - **video** — flattens each frame onto black, centers it on a canvas sized
   to the largest frame, and stitches them with `ffmpeg`
   (`libx264`, CRF 18, faststart).

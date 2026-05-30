@@ -2,10 +2,11 @@
 
     python -m slideshow silhouette IN_DIR  OUT_DIR  [--halo-px N] ...
     python -m slideshow center     IN_DIR  OUT_DIR  [--width N] ...
+    python -m slideshow animate    IN_DIR  OUT_DIR  --effect E [--frames N] ...
     python -m slideshow video      IN_DIR  OUT.mp4  [--fps N]
 
 Steps chain through directories, so the user composes the user stories:
-e.g. silhouette -> center -> video, or just center -> video.
+e.g. silhouette -> center -> video, or animate -> video.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import center, silhouette, video
+from . import animate, center, silhouette, video
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,6 +49,22 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--model", default="u2net",
                    help="rembg model (ignored when --target faces).")
 
+    a = sub.add_parser(
+        "animate", help="Expand each photo into an animated clip of frames."
+    )
+    a.add_argument("input_dir", type=Path)
+    a.add_argument("output_dir", type=Path)
+    a.add_argument("--effect", required=True, choices=tuple(animate.EFFECTS),
+                   help="Animation effect to apply to each photo.")
+    a.add_argument("--frames", type=int, default=30,
+                   help="Number of frames each photo expands into.")
+    a.add_argument("--target", choices=("subject", "faces"), default="subject",
+                   help="What to detect: whole subject (rembg) or faces only.")
+    a.add_argument("--alpha-thresh", type=int, default=16,
+                   help="Alpha cutoff for what counts as subject.")
+    a.add_argument("--model", default="u2net",
+                   help="rembg model (ignored when --target faces).")
+
     v = sub.add_parser("video", help="Encode a folder of frames into an MP4.")
     v.add_argument("input_dir", type=Path)
     v.add_argument("output_video", type=Path)
@@ -77,6 +94,17 @@ def main(argv: list[str] | None = None) -> int:
             alpha_thresh=args.alpha_thresh,
             background=args.background,
             letterbox_crop=not args.no_letterbox_crop,
+            model=args.model,
+            target=args.target,
+        )
+        return 0 if kept else 1
+
+    if args.command == "animate":
+        kept = animate.run(
+            args.input_dir, args.output_dir,
+            effect=args.effect,
+            frames=args.frames,
+            alpha_thresh=args.alpha_thresh,
             model=args.model,
             target=args.target,
         )
