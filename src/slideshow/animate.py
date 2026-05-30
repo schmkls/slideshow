@@ -16,8 +16,10 @@ Effects (chosen with ``--effect``):
 
 - ``fade-background`` — start: the subject on black; end: the full photo.
   Dissolved, the subject stays solid while the background fades in.
+- ``fade-subject`` — the mirror: start the *background* on black, end the full
+  photo. Dissolved, the background stays solid while the subject fades in.
 
-More effects (``fade-subject``, ``place``) slot into ``EFFECTS`` as we add them.
+More effects (``place``) slot into ``EFFECTS`` as we add them.
 """
 
 from __future__ import annotations
@@ -33,6 +35,17 @@ from .images import discover, load_upright, save_png
 from .segmentation import MaskProvider, Segmenter
 
 
+def _on_black(base: np.ndarray, keep: np.ndarray) -> Image.Image:
+    """``base`` kept where ``keep`` (``0..255``) is high, composited on black.
+
+    ``base * keep/255`` — pixels fade to black as ``keep`` drops, so the soft
+    edges of a mask are preserved. This is the one masking op the fade effects
+    share; they differ only in *what* they keep.
+    """
+    kept = (base * keep[:, :, None].astype(np.uint16) // 255).astype(np.uint8)
+    return Image.fromarray(kept, "RGB")
+
+
 def fade_background(
     base: np.ndarray, mask: np.ndarray
 ) -> tuple[Image.Image, Image.Image]:
@@ -41,21 +54,36 @@ def fade_background(
     ``base`` is the photo as an ``(H, W, 3)`` RGB array; ``mask`` is the soft
     subject alpha (``0..255``, high on the subject). Returns ``(start, end)``:
 
-    - ``start`` — the subject composited on black (``base * mask/255``): only
-      the subject shows, with its soft edges kept.
+    - ``start`` — the subject composited on black: only the subject shows.
     - ``end`` — the full photo.
 
     A linear dissolve ``start*(1-t) + end*t`` equals ``base * alpha_t/255`` with
     ``alpha_t = mask + (255-mask)*t`` exactly: the subject stays solid while the
     background ramps from invisible to fully opaque.
     """
-    subject = (base * mask[:, :, None].astype(np.uint16) // 255).astype(np.uint8)
-    return Image.fromarray(subject, "RGB"), Image.fromarray(base, "RGB")
+    return _on_black(base, mask), Image.fromarray(base, "RGB")
+
+
+def fade_subject(
+    base: np.ndarray, mask: np.ndarray
+) -> tuple[Image.Image, Image.Image]:
+    """Endpoints of the subject fade-in — the mirror of ``fade_background``.
+
+    Keep the *background* (``255 - mask``) on black instead of the subject:
+
+    - ``start`` — the background composited on black (subject area black).
+    - ``end`` — the full photo.
+
+    The dissolve is ``base * (255 - mask*(1-t))/255``: the background stays solid
+    while the subject ramps from invisible to fully opaque.
+    """
+    return _on_black(base, 255 - mask), Image.fromarray(base, "RGB")
 
 
 # effect name -> function(base_rgb, subject_mask) -> (start_img, end_img)
 EFFECTS = {
     "fade-background": fade_background,
+    "fade-subject": fade_subject,
 }
 
 

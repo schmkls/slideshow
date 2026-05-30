@@ -56,7 +56,7 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--no-letterbox-crop` | off |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
-| `animate`    | `--effect` | *(required:* `fade-background`*)* |
+| `animate`    | `--effect` | *(required:* `fade-background` \| `fade-subject`*)* |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `video`      | `--fps` | `10` |
@@ -78,6 +78,10 @@ slideshow silhouette ./photos   ./halo
 
 # Animate: fade each photo's background in, then make a video
 slideshow animate ./photos      ./frames --effect fade-background
+slideshow video   ./frames      out.mp4 --fade 30
+
+# Animate: fade each photo's subject in instead (the mirror effect)
+slideshow animate ./photos      ./frames --effect fade-subject
 slideshow video   ./frames      out.mp4 --fade 30
 
 # Center on faces only (instead of the whole subject)
@@ -106,10 +110,11 @@ compose in any order — `center` finds the subject itself whether or not
 - **animate** — detects the subject once per photo and emits the *two*
   keyframes of its clip (start and end). `fade-background` writes the subject
   on black, then the full photo; dissolved by `video --fade`, the subject
-  stays solid while the background "develops" in. A fade is a linear dissolve
-  between its endpoints, so two stills per photo carry the whole clip —
-  `video` synthesises the in-between frames, which is what makes this fast
-  (no per-frame images written or re-read).
+  stays solid while the background "develops" in. `fade-subject` is the mirror
+  (background on black, then the full photo), so the subject develops in over a
+  solid background. A fade is a linear dissolve between its endpoints, so two
+  stills per photo carry the whole clip — `video` synthesises the in-between
+  frames, which is what makes this fast (no per-frame images written or re-read).
 - **video** — flattens each frame onto black, centers it on a canvas sized
   to the largest frame, and stitches them with `ffmpeg` (`libx264`, CRF 18,
   faststart). With `--fade N` it reads the folder as `(start, end)` pairs and
