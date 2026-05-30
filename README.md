@@ -9,6 +9,7 @@ frames (or, for `video`, an MP4), so any step chains into any other.
 - Python 3.10+
 - `ffmpeg` on `PATH`
 - First run downloads a ~176 MB segmentation model (cached in `~/.u2net`)
+- First `--target faces` run downloads a ~5 MB face model (cached in `~/.slideshow`)
 - HEIC/HEIF input is supported via `pillow-heif`
 
 ## Install
@@ -52,6 +53,7 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--subject-frac` | `0.2` |
 |              | `--background` | `transparent` (or `black`) |
 |              | `--no-letterbox-crop` | off |
+|              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `video`      | `--fps` | `10` |
 
@@ -69,6 +71,10 @@ slideshow video      ./halo     out.mp4
 # Just add silhouettes
 slideshow silhouette ./photos   ./halo
 
+# Center on faces only (instead of the whole subject)
+slideshow center  ./photos    ./centered --target faces
+slideshow video   ./centered  out.mp4
+
 # Silhouette, then center, then video
 slideshow silhouette ./photos   ./halo
 slideshow center     ./halo     ./centered
@@ -84,8 +90,9 @@ compose in any order — `center` finds the subject itself whether or not
 - **silhouette** — segments the subject with `rembg` and paints a white
   halo ring around it on the *original photo* (background kept; input
   resolution, no scaling/positioning here).
-- **center** — finds the subject, scales it to `subject-frac × width`,
-  and centers it on both axes of the canvas. The letterbox margin shared
+- **center** — finds the subject, scales it to `subject-frac × width`, and
+  centers it on both axes of the canvas. With `--target faces` it centers on
+  detected faces instead, using OpenCV's res10 face detector. The letterbox margin shared
   by *every* frame is then cropped off uniformly (even-rounded for h264).
 - **video** — flattens each frame onto black, centers it on a canvas sized
   to the largest frame, and stitches them with `ffmpeg`

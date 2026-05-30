@@ -14,6 +14,8 @@ dependencies = [
     "pillow-heif>=0.16",
     "rembg>=2.0.50",
     "onnxruntime>=1.16",
+    "opencv-python>=4.8",
+    "certifi>=2023.7",
 ]
 
 [project.scripts]
@@ -21,6 +23,9 @@ slideshow = "slideshow.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+slideshow = ["models/*.prototxt"]
 
 [tool.ruff]
 line-length = 88

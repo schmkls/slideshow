@@ -43,7 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
                    default="transparent", help="Letterbox fill.")
     c.add_argument("--no-letterbox-crop", action="store_true",
                    help="Skip the uniform crop of the shared letterbox.")
-    c.add_argument("--model", default="u2net", help="rembg model.")
+    c.add_argument("--target", choices=("subject", "faces"), default="subject",
+                   help="What to center on: whole subject (rembg) or faces only.")
+    c.add_argument("--model", default="u2net",
+                   help="rembg model (ignored when --target faces).")
 
     v = sub.add_parser("video", help="Encode a folder of frames into an MP4.")
     v.add_argument("input_dir", type=Path)
@@ -75,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
             background=args.background,
             letterbox_crop=not args.no_letterbox_crop,
             model=args.model,
+            target=args.target,
         )
         return 0 if kept else 1
 

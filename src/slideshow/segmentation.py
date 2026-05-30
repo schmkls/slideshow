@@ -8,8 +8,22 @@ the (~176 MB) model once per process.
 
 from __future__ import annotations
 
+from typing import Protocol
+
 import numpy as np
 from PIL import Image
+
+
+class MaskProvider(Protocol):
+    """Anything the silhouette/center steps can ask "where is the subject?".
+
+    A ``Segmenter`` (whole-subject) and a ``FaceDetector`` (faces only) both
+    satisfy this, so the steps consume either one interchangeably.
+    """
+
+    def subject_alpha(self, img: Image.Image) -> np.ndarray:
+        """A uint8 mask the size of ``img``: high where the subject is."""
+        ...
 
 
 def alpha_bbox(

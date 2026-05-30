@@ -16,15 +16,16 @@ from pathlib import Path
 
 from PIL import Image
 
+from .faces import FaceDetector
 from .images import discover, load_upright, save_png
-from .segmentation import Segmenter, alpha_bbox
+from .segmentation import MaskProvider, Segmenter, alpha_bbox
 
 PasteBox = tuple[int, int, int, int]  # (x, y, w, h) of the image on the canvas
 
 
 def scale_and_center(
     img: Image.Image,
-    segmenter: Segmenter,
+    provider: MaskProvider,
     *,
     out_w: int,
     out_h: int,
@@ -32,8 +33,12 @@ def scale_and_center(
     alpha_thresh: int,
     background: str,
 ) -> tuple[Image.Image, PasteBox] | None:
-    """Scale + center one image on the canvas. ``None`` if no subject."""
-    alpha = segmenter.subject_alpha(img)
+    """Scale + center one image on the canvas. ``None`` if nothing detected.
+
+    ``provider`` decides what to center on: the whole subject (``Segmenter``)
+    or faces only (``FaceDetector``).
+    """
+    alpha = provider.subject_alpha(img)
     bbox = alpha_bbox(alpha, alpha_thresh)
     if bbox is None:
         return None
@@ -87,13 +92,19 @@ def run(
     background: str = "transparent",
     letterbox_crop: bool = True,
     model: str = "u2net",
+    target: str = "subject",
 ) -> int:
-    """Process a directory. Returns the number of frames written."""
+    """Process a directory. Returns the number of frames written.
+
+    ``target`` is ``"subject"`` (whole foreground) or ``"faces"`` (faces only).
+    """
     photos = discover(input_dir)
     if not photos:
         return 0
 
-    segmenter = Segmenter(model)
+    provider: MaskProvider = (
+        FaceDetector() if target == "faces" else Segmenter(model)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     kept = 0
     boxes: list[PasteBox] = []
@@ -102,7 +113,7 @@ def run(
         try:
             result = scale_and_center(
                 load_upright(src),
-                segmenter,
+                provider,
                 out_w=width,
                 out_h=height,
                 subject_frac=subject_frac,
@@ -113,7 +124,8 @@ def run(
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)
             continue
         if result is None:
-            print(f"{src.name}: no subject detected, skipped", file=sys.stderr)
+            what = "face" if target == "faces" else "subject"
+            print(f"{src.name}: no {what} detected, skipped", file=sys.stderr)
             continue
         canvas, box = result
         dst = output_dir / f"{kept:05d}.png"
