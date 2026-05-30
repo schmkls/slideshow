@@ -1,4 +1,4 @@
-"""Step: paint a white silhouette/halo ring around each subject.
+"""Step: paint a white halo ring around each subject.
 
 In: a folder of photos. Out: a folder of ``NNNNN.png`` frames — each the
 original photo (background kept) with a white halo ring drawn around the

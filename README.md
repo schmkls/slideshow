@@ -20,17 +20,12 @@ source .venv/bin/activate          # do this in every new shell
 pip install -e .
 ```
 
-This installs the dependencies and a `slideshow` command **into the
-venv**. You must use that venv to run it — either:
+This installs the dependencies and a `slideshow` command into the venv. Run it
+either by activating the venv (`source .venv/bin/activate`) and calling
+`slideshow ...`, or directly via `.venv/bin/slideshow ...`. The system
+`python3 -m slideshow` won't work — that interpreter isn't the venv.
 
-- **activate it** (`source .venv/bin/activate`) in each new terminal, then
-  use `slideshow ...` (and `python`, which only exists once activated); or
-- don't activate and call it directly: `.venv/bin/slideshow ...`.
-
-Running the system `python3 -m slideshow` will fail with
-`No module named slideshow` — that interpreter is not the venv.
-
-> Running from source without installing: `PYTHONPATH=src python3 -m slideshow ...`
+> Run from source without installing: `PYTHONPATH=src python3 -m slideshow ...`
 
 ## Steps
 
@@ -62,7 +57,7 @@ Run `slideshow <step> --help` for that step's flags.
 | `video`      | `--fps` | `10` |
 |              | `--fade` | `0` (frames per dissolve; use with `animate`) |
 
-## User stories (how to compose the steps)
+## Examples (composing the steps)
 
 ```sh
 # Center subjects, then make a video
@@ -80,7 +75,7 @@ slideshow silhouette ./photos   ./halo
 slideshow animate ./photos      ./frames --effect fade-background
 slideshow video   ./frames      out.mp4 --fade 30
 
-# Animate: fade each photo's subject in instead (the mirror effect)
+# Animate: fade each photo's subject in instead
 slideshow animate ./photos      ./frames --effect fade-subject
 slideshow video   ./frames      out.mp4 --fade 30
 
@@ -100,22 +95,18 @@ compose in any order — `center` finds the subject itself whether or not
 
 ## How it works
 
-- **silhouette** — segments the subject with `rembg` and paints a white
-  halo ring around it on the *original photo* (background kept; input
-  resolution, no scaling/positioning here).
+- **silhouette** — segments the subject with `rembg` and paints a white halo
+  ring around it on the original photo. Background and resolution are kept;
+  scaling and positioning are the `center` step's job.
 - **center** — finds the subject, scales it to `subject-frac × width`, and
-  centers it on both axes of the canvas. With `--target faces` it centers on
-  detected faces instead, using OpenCV's res10 face detector. The letterbox margin shared
-  by *every* frame is then cropped off uniformly (even-rounded for h264).
-- **animate** — detects the subject once per photo and emits the *two*
-  keyframes of its clip (start and end). `fade-background` writes the subject
-  on black, then the full photo; dissolved by `video --fade`, the subject
-  stays solid while the background "develops" in. `fade-subject` is the mirror
-  (background on black, then the full photo), so the subject develops in over a
-  solid background. A fade is a linear dissolve between its endpoints, so two
-  stills per photo carry the whole clip — `video` synthesises the in-between
-  frames, which is what makes this fast (no per-frame images written or re-read).
-- **video** — flattens each frame onto black, centers it on a canvas sized
-  to the largest frame, and stitches them with `ffmpeg` (`libx264`, CRF 18,
-  faststart). With `--fade N` it reads the folder as `(start, end)` pairs and
-  cross-dissolves each pair over `N` frames instead of showing one per image.
+  centers it on the canvas. With `--target faces` it centers on detected faces
+  instead (OpenCV's res10 detector). The letterbox margin shared by every frame
+  is then cropped off uniformly (rounded to even dimensions for h264).
+- **animate** — detects the subject once per photo and writes the two keyframes
+  of its clip. `fade-background` writes the subject on black, then the full
+  photo; `fade-subject` does the reverse. `video --fade` dissolves between each
+  pair, so only two stills per photo are written.
+- **video** — flattens each frame onto black, centers it on a canvas sized to
+  the largest frame, and encodes with `ffmpeg` (`libx264`, CRF 18, faststart).
+  With `--fade N` it reads the folder as `(start, end)` pairs and cross-dissolves
+  each pair over `N` frames.

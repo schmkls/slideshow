@@ -1,9 +1,9 @@
-"""Subject segmentation — the one place the rembg model lives.
+"""Subject segmentation backed by the rembg model.
 
-Both the silhouette and center steps need to know where the subject is.
-Each step detects the subject independently (the model runs per step),
-so the steps stay standalone and compose in any order. This module loads
-the (~176 MB) model once per process.
+The silhouette, center, and animate steps all need to know where the
+subject is. Each step detects it independently, so the steps stay
+standalone and compose in any order. The model (~176 MB) loads once per
+process and downloads on first use.
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from PIL import Image
 
 
 class MaskProvider(Protocol):
-    """Anything the silhouette/center steps can ask "where is the subject?".
+    """Locates the subject in an image.
 
-    A ``Segmenter`` (whole-subject) and a ``FaceDetector`` (faces only) both
-    satisfy this, so the steps consume either one interchangeably.
+    Implemented by ``Segmenter`` (whole subject) and ``FaceDetector`` (faces
+    only), so the center and animate steps can use either one.
     """
 
     def subject_alpha(self, img: Image.Image) -> np.ndarray:

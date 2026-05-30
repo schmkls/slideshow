@@ -2,11 +2,11 @@
 
     python -m slideshow silhouette IN_DIR  OUT_DIR  [--halo-px N] ...
     python -m slideshow center     IN_DIR  OUT_DIR  [--width N] ...
-    python -m slideshow animate    IN_DIR  OUT_DIR  --effect E [--frames N] ...
-    python -m slideshow video      IN_DIR  OUT.mp4  [--fps N]
+    python -m slideshow animate    IN_DIR  OUT_DIR  --effect E [--target T] ...
+    python -m slideshow video      IN_DIR  OUT.mp4  [--fps N] [--fade N]
 
-Steps chain through directories, so the user composes the user stories:
-e.g. silhouette -> center -> video, or animate -> video.
+Steps chain through directories, so they compose: e.g.
+silhouette -> center -> video, or animate -> video.
 """
 
 from __future__ import annotations

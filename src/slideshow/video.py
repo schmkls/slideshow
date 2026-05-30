@@ -1,16 +1,14 @@
 """Step: encode a folder of frames into an MP4.
 
-In: a folder of images in ``discover`` order (any names or numbering;
-gaps are fine — order is whatever ``discover`` returns). Out: an H.264 MP4.
+In: a folder of images in ``discover`` order (any names or numbering; gaps
+are fine). Out: an H.264 MP4.
 
-By default each image is one displayed frame. With ``--fade N`` the folder is
-read as ``(start, end)`` keyframe pairs (what ``animate`` writes) and each pair
-is cross-dissolved into an ``N``-frame clip — the animation is synthesised here,
-at encode time, instead of being materialised as frames on disk.
+By default each image is one frame. With ``--fade N`` the folder is read as
+``(start, end)`` keyframe pairs (what ``animate`` writes) and each pair is
+cross-dissolved into an N-frame clip.
 
-A video has no alpha and one fixed size, so this step flattens each frame
-onto black and centers it on a canvas big enough for the largest frame —
-that's the only normalization an encoder inherently has to do.
+A video has no alpha and one fixed size, so each frame is flattened onto
+black and centered on a canvas sized to the largest frame.
 """
 
 from __future__ import annotations
@@ -79,14 +77,12 @@ def _fade_cmd(
     frames: list[Path], output_video: Path, fps: int, fade: int,
     canvas_w: int, canvas_h: int,
 ) -> tuple[list[str], None]:
-    """Animation: cross-dissolve each ``(start, end)`` pair into a ``fade``-frame
-    clip, then concatenate the clips. Returns ``(cmd, None)``.
+    """Cross-dissolve each ``(start, end)`` pair into a ``fade``-frame clip,
+    then concatenate the clips. Returns ``(cmd, None)``.
 
     Each still is looped for the clip's duration, padded onto the shared black
-    canvas, and ``xfade``-d to its partner over the whole clip (a linear
-    dissolve). ffmpeg interpolates the in-between frames, so we never write
-    them: ``2`` stills per photo here replace the ``fade`` frames the old step
-    materialised.
+    canvas, and ``xfade``-d to its partner over the whole clip. ffmpeg
+    interpolates the in-between frames, so only the two stills are needed.
     """
     dur = fade / fps
     pad = (

@@ -6,7 +6,7 @@ subject scaled to ``subject_frac`` of the width and centered on both axes.
 
 Letterbox (the canvas area a frame's image doesn't cover) is filled with
 the chosen background; afterwards the margin shared by *every* frame is
-cropped off uniformly, so no frame keeps a border every frame could drop.
+cropped off uniformly, so frames don't keep a border they all share.
 """
 
 from __future__ import annotations

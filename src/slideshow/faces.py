@@ -1,14 +1,13 @@
-"""Face detection — a faces-only alternative subject locator for the steps.
+"""Faces-only subject locator — a ``MaskProvider`` backed by OpenCV.
 
 Where ``Segmenter`` finds the whole foreground subject, ``FaceDetector``
-finds *faces only*: it runs OpenCV's res10 SSD face detector and returns a
+finds faces only: it runs OpenCV's res10 SSD face detector and returns a
 mask with one filled ellipse per detected face. It exposes the same
-``subject_alpha(img) -> np.ndarray`` as ``Segmenter`` (the ``MaskProvider``
-protocol), so the silhouette and center steps use either interchangeably.
+``subject_alpha`` as ``Segmenter``, so the center and animate steps can use
+either one.
 
-The detector needs two files: a small ``deploy.prototxt`` (bundled with the
-package) and a ~5 MB ``.caffemodel`` (downloaded on first use and cached in
-``~/.slideshow``, mirroring how rembg caches its model in ``~/.u2net``).
+It needs two files: ``deploy.prototxt`` (bundled with the package) and a
+~5 MB ``.caffemodel`` (downloaded on first use, cached in ``~/.slideshow``).
 """
 
 from __future__ import annotations
@@ -58,10 +57,10 @@ def _ensure_caffemodel() -> Path:
 
 
 class FaceDetector:
-    """Lazily-loaded OpenCV res10 face detector; a faces-only MaskProvider.
+    """Lazily-loaded OpenCV res10 face detector (a ``MaskProvider``).
 
     ``conf_thresh`` is the minimum detector confidence (0..1) a box must
-    reach to count as a face — raise it to drop shaky detections.
+    reach to count as a face — raise it to drop weak detections.
     """
 
     def __init__(self, conf_thresh: float = 0.5) -> None:
@@ -99,5 +98,5 @@ class FaceDetector:
             x0, x1 = sorted((max(0.0, x0), min(float(w), x1)))
             y0, y1 = sorted((max(0.0, y0), min(float(h), y1)))
             if x1 > x0 and y1 > y0:
-                draw.ellipse((x0, y0, x1, y1), fill=255)  # oval over the face
+                draw.ellipse((x0, y0, x1, y1), fill=255)
         return np.array(mask)
