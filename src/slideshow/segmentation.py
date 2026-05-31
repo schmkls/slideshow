@@ -1,9 +1,9 @@
 """Subject segmentation backed by the rembg model.
 
-The silhouette, center, and animate steps all need to know where the
-subject is. Each step detects it independently, so the steps stay
-standalone and compose in any order. The model (~176 MB) loads once per
-process and downloads on first use.
+The ``mask`` step detects each subject once and writes it beside the photo;
+every other step reads that mask. So this module is invoked from exactly one
+place — ``make_provider`` — rather than from each step. The model (~176 MB)
+loads once per process and downloads on first use.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ class MaskProvider(Protocol):
     """Locates the subject in an image.
 
     Implemented by ``Segmenter`` (whole subject) and ``FaceDetector`` (faces
-    only), so the center and animate steps can use either one.
+    only), so the ``mask`` step can use either one per its ``--target``.
     """
 
     def subject_alpha(self, img: Image.Image, key: str | None = None) -> np.ndarray:
@@ -34,7 +34,7 @@ class MaskProvider(Protocol):
 def make_provider(
     target: str, *, model: str = "u2net", input_dir: Path | None = None
 ) -> MaskProvider:
-    """The ``MaskProvider`` for a step's ``--target``.
+    """The ``MaskProvider`` for the ``mask`` step's ``--target``.
 
     ``"faces"`` -> a ``FaceDetector`` honoring a ``faces.json`` selection in
     ``input_dir`` (if present); anything else -> a whole-subject ``Segmenter``.

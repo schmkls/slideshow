@@ -1,11 +1,11 @@
 """Step: turn each photo into the two keyframes of a fade clip.
 
-In: a folder of photos. Out: a folder of ``NNNNN.png`` stills, two per
-photo — the start and end of a fade. ``video --fade N`` cross-dissolves each
-pair into an N-frame clip, so only the two endpoints are written here.
+In: a folder of photos and their masks. Out: a folder of ``NNNNN.png`` stills,
+two per photo — the start and end of a fade. ``video --fade N`` cross-dissolves
+each pair into an N-frame clip, so only the two endpoints are written here.
 
-The subject is detected once per photo, then the chosen effect derives the
-two endpoints from that detection.
+This is a terminal step: it reads each photo's mask, emits frames, and writes
+no mask. The chosen effect derives the two endpoints from the mask.
 
 Effects (``--effect``):
 
@@ -23,8 +23,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..images import discover, load_upright, save_png
-from ..segmentation import MaskProvider, make_provider
+from ..images import discover, load_mask, load_upright, require_masks, save_png
 
 
 def _on_black(base: np.ndarray, keep: np.ndarray) -> Image.Image:
@@ -76,32 +75,28 @@ def run(
     *,
     effect: str,
     alpha_thresh: int = 16,
-    model: str = "u2net",
-    target: str = "subject",
 ) -> int:
     """Process a directory. Returns the number of stills written (2 per photo).
 
-    Each photo is detected once (whole ``subject`` or ``faces`` only), then
-    ``effect`` turns it into two keyframes.
+    Each photo's mask turns into two keyframes via ``effect``.
     """
     photos = discover(input_dir)
     if not photos:
         return 0
+    require_masks(photos)
 
     make_endpoints = EFFECTS[effect]
-    provider: MaskProvider = make_provider(target, model=model, input_dir=input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     for idx, src in enumerate(photos):
         try:
             img = load_upright(src)
-            mask = provider.subject_alpha(img, src.name)
+            mask = load_mask(src)
         except Exception as e:  # noqa: BLE001 - one bad image shouldn't abort the batch
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)
             continue
         if not (mask > alpha_thresh).any():
-            what = "face" if target == "faces" else "subject"
-            print(f"{src.name}: no {what} detected, skipped", file=sys.stderr)
+            print(f"{src.name}: empty mask, skipped", file=sys.stderr)
             continue
         base = np.array(img.convert("RGB"))
         for frame in make_endpoints(base, mask):

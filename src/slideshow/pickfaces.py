@@ -12,8 +12,8 @@ excluded photo yields an empty mask, which those steps skip). Esc instead skips
 *choosing* — the photo keeps all its faces.
 
 Photos with a single face are auto-selected (no window); photos with none are
-skipped. Re-running keeps earlier choices unless ``--redo`` is set, so you can
-stop and resume a long folder.
+skipped. Every run re-picks every photo fresh and overwrites ``faces.json`` — to
+re-pick, re-run; to start clean, delete ``faces.json`` first.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .faces import SIDECAR_NAME, FaceDetector, load_selection, save_selection
+from .faces import SIDECAR_NAME, FaceDetector, save_selection
 from .images import discover, load_upright
 from .pick import EXCLUDE, choose_face
 
@@ -31,25 +31,20 @@ def run(
     *,
     conf_thresh: float = 0.5,
     det_size: int = 900,
-    redo: bool = False,
 ) -> int:
     """Pick a face per photo and write ``input_dir/faces.json``.
 
-    Returns how many photos ended up with a selection.
+    Always overwrites: every photo is re-picked fresh. Returns how many photos
+    ended up with a selection.
     """
     photos = discover(input_dir)
     if not photos:
         return 0
 
     detector = FaceDetector(conf_thresh, det_size=det_size)
-    existing = {} if redo else (load_selection(input_dir) or {})
-    selection = dict(existing)
+    selection = {}
     for idx, src in enumerate(photos):
         tag = f"[{idx + 1}/{len(photos)}] {src.name}"
-        if src.name in existing:
-            note = "excluded" if existing[src.name] is None else "selected"
-            print(f"{tag}: kept existing ({note})", flush=True)
-            continue
         try:
             img = load_upright(src)
             boxes = detector.detect(img)

@@ -26,5 +26,5 @@ frames/
 *.swp
 
 # Dev work files
-todo.md
+.dev
 .test

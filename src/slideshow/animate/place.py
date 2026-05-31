@@ -1,9 +1,10 @@
 """Step: move the subject around to make an animated clip.
 
-In: a folder of photos. Out: a folder of ``NNNNN.png`` frames — ``--frames``
-of them per photo, the full motion already rendered. A plain ``video`` plays
-them (no ``--fade``): the motion is geometric, not an opacity blend, so unlike
-``fade`` it can't be reconstructed by cross-dissolving two keyframes.
+In: a folder of photos and their masks. Out: a folder of ``NNNNN.png`` frames —
+``--frames`` of them per photo, the full motion already rendered. A plain
+``video`` plays them (no ``--fade``): the motion is geometric, not an opacity
+blend, so unlike ``fade`` it can't be reconstructed by cross-dissolving two
+keyframes.
 
 Motions (``--motion``), where the subject travels from the *first* frame to
 its original place (or the reverse) over the clip:
@@ -14,10 +15,10 @@ its original place (or the reverse) over the clip:
 - ``grow-and-rotate`` — grows like ``grow`` while wobbling between -45° and
   +45° in 5° steps.
 
-Kept cheap by splitting the work: the subject is detected once per photo (the
-expensive part), then each frame is a few PIL ops — resize / rotate / paste the
-subject sprite onto the original photo. So detection is O(photos) and the
-geometry is O(photos × frames).
+Kept cheap by splitting the work: each photo carries its subject mask, so the
+sprite costs only a crop, then each frame is a few PIL ops — resize / rotate /
+paste the subject sprite onto the original photo. This is a terminal step: it
+reads the masks, emits frames, and writes none.
 
 The sprite rides on the *original photo*, so where a motion uncovers the
 subject's home spot (only ``left-to-right`` does) the original subject shows
@@ -33,8 +34,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..images import discover, load_upright, save_png
-from ..segmentation import MaskProvider, alpha_bbox, make_provider
+from ..images import discover, load_mask, load_upright, require_masks, save_png
+from ..segmentation import alpha_bbox
 
 
 @dataclass(frozen=True)
@@ -146,33 +147,30 @@ def run(
     motion: str,
     frames: int = 30,
     alpha_thresh: int = 16,
-    model: str = "u2net",
-    target: str = "subject",
 ) -> int:
     """Process a directory. Returns the number of frames written.
 
-    Each photo is detected once (whole ``subject`` or ``faces`` only), then
-    ``motion`` renders ``frames`` frames moving the subject sprite over it.
+    ``motion`` renders ``frames`` frames moving each photo's masked subject
+    sprite over it.
     """
     photos = discover(input_dir)
     if not photos:
         return 0
+    require_masks(photos)
 
     move = MOTIONS[motion]
-    provider: MaskProvider = make_provider(target, model=model, input_dir=input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     for idx, src in enumerate(photos):
         try:
             img = load_upright(src)
-            mask = provider.subject_alpha(img, src.name)
+            mask = load_mask(src)
         except Exception as e:  # noqa: BLE001 - one bad image shouldn't abort the batch
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)
             continue
         bbox = alpha_bbox(mask, alpha_thresh)
         if bbox is None:
-            what = "face" if target == "faces" else "subject"
-            print(f"{src.name}: no {what} detected, skipped", file=sys.stderr)
+            print(f"{src.name}: empty mask, skipped", file=sys.stderr)
             continue
 
         base = img.convert("RGBA")

@@ -1,9 +1,11 @@
-"""Composable photo-slideshow steps: silhouette, center, fade, place, video.
+"""Composable photo-slideshow steps: mask, silhouette, center, fade, place, video.
 
 Each step is a directory in / directory out, so any step can chain into
-any other. The ``fade`` and ``place`` steps live in the ``animate`` package.
-``pick-faces`` is interactive: it records a single-face choice per photo
-(``faces.json``) that the ``--target faces`` steps then honor.
+any other. ``mask`` detects each subject once and writes a ``<stem>.mask.png``
+beside the photo; every other step reads that mask instead of redetecting, so
+run ``mask`` first. The ``fade``, ``linger``, and ``place`` steps live in the
+``animate`` package. ``pick-faces`` is interactive: it records a single-face
+choice per photo (``faces.json``) that ``mask --target faces`` then honors.
 See ``slideshow.cli`` for the command line.
 """
 
@@ -12,6 +14,7 @@ from . import (
     center,
     faces,
     images,
+    mask,
     pick,
     pickfaces,
     segmentation,
@@ -20,6 +23,6 @@ from . import (
 )
 
 __all__ = [
-    "images", "segmentation", "faces", "silhouette", "center", "animate",
-    "pick", "pickfaces", "video",
+    "images", "segmentation", "faces", "mask", "silhouette", "center",
+    "animate", "pick", "pickfaces", "video",
 ]

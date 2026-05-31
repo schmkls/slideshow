@@ -1,9 +1,9 @@
 """Step: linger each photo's subject into the next photo.
 
-In: a folder of photos (typically already ``center``-ed onto a common canvas).
-Out: a folder of ``NNNNN.png`` keyframes that ``video --fade N`` cross-dissolves
-into the animation — so, like ``fade``, only keyframes are written here and
-ffmpeg interpolates the in-between frames.
+In: a folder of photos and their masks (typically already ``center``-ed onto a
+common canvas). Out: a folder of ``NNNNN.png`` keyframes that ``video --fade N``
+cross-dissolves into the animation — so, like ``fade``, only keyframes are
+written here and ffmpeg interpolates the in-between frames.
 
 For each adjacent pair A -> B the previous subject lingers across the cut. The
 one composite keyframe per transition is ``K`` — photo B with A's subject pasted
@@ -13,9 +13,9 @@ on top — giving the chain ``A -> K -> B``: A's subject arrives in the next sce
 the shared endpoint ``K`` joins them seamlessly.
 
 Pasting the whole photo masked by its subject needs no hole-filling — only the
-subject mask, detected once per photo by the same provider the other steps use.
-Subjects land at their original pixel position, so the photos should share a
-canvas (run ``center`` first).
+subject mask each photo carries. This is a terminal step: it reads the masks,
+emits keyframes, and writes none. Subjects land at their original pixel
+position, so the photos should share a canvas (run ``center`` first).
 """
 
 from __future__ import annotations
@@ -27,8 +27,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..images import discover, load_upright, save_png
-from ..segmentation import MaskProvider, make_provider
+from ..images import discover, load_mask, load_upright, require_masks, save_png
 
 
 @dataclass
@@ -58,32 +57,28 @@ def run(
     *,
     loop: bool = True,
     alpha_thresh: int = 16,
-    model: str = "u2net",
-    target: str = "subject",
 ) -> int:
     """Process a directory. Returns the number of keyframes written.
 
-    Each photo is detected once, then every adjacent pair (wrapping past the
-    last photo when ``loop``) yields four keyframes — ``(A, K)`` and ``(K, B)``
-    — for ``video --fade`` to dissolve. Photos with no detected subject are
-    dropped, joining their neighbors in the chain.
+    Every adjacent pair (wrapping past the last photo when ``loop``) yields four
+    keyframes — ``(A, K)`` and ``(K, B)`` — for ``video --fade`` to dissolve.
+    Photos with an empty mask are dropped, joining their neighbors in the chain.
     """
     photos = discover(input_dir)
     if not photos:
         return 0
+    require_masks(photos)
 
-    provider: MaskProvider = make_provider(target, model=model, input_dir=input_dir)
     layered: list[_Layered] = []
     for src in photos:
         try:
             img = load_upright(src)
-            mask = provider.subject_alpha(img, src.name)
+            mask = load_mask(src)
         except Exception as e:  # noqa: BLE001 - one bad image shouldn't abort the batch
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)
             continue
         if not (mask > alpha_thresh).any():
-            what = "face" if target == "faces" else "subject"
-            print(f"{src.name}: no {what} detected, skipped", file=sys.stderr)
+            print(f"{src.name}: empty mask, skipped", file=sys.stderr)
             continue
         rgb = np.array(img.convert("RGB"))
         subject = Image.fromarray(np.dstack([rgb, mask]), "RGBA")
