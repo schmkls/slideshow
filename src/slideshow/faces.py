@@ -151,25 +151,17 @@ class FaceDetector:
         return self._net
 
     def detect(self, img: Image.Image) -> list[Box]:
-        """Pixel-space box for each detected face, ordered left-to-right so a
-        picker can number them stably.
+        """Pixel-space box for each detected face, ordered left-to-right.
 
-        The photo is letterboxed (not squashed) onto a ``det_size`` square so
-        its proportions are kept, run through res10, then overlapping boxes are
-        merged with NMS.
+        The photo is letterboxed onto a ``det_size`` square (keeping aspect
+        ratio), run through res10, then overlapping boxes are merged with NMS.
         """
         import cv2
 
         rgb = np.array(img.convert("RGB"))
         h, w = rgb.shape[:2]
-        # res10 was trained on BGR with these channel means; swap RGB->BGR.
-        bgr = np.ascontiguousarray(rgb[:, :, ::-1])
+        bgr = np.ascontiguousarray(rgb[:, :, ::-1])  # res10 expects BGR
 
-        # Letterbox onto a det x det square: resize keeping aspect, paste at the
-        # top-left, pad with the channel means so the padding is neutral once
-        # the net subtracts them. Pasting at (0, 0) means a normalized output
-        # coord just scales back by max(w, h); padding-only boxes fall outside
-        # [0, w] x [0, h] and are dropped by the clamp below.
         det = self.det_size
         s = det / max(w, h)
         resized = cv2.resize(bgr, (max(1, round(w * s)), max(1, round(h * s))))

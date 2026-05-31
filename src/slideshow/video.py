@@ -35,19 +35,13 @@ def _concat_escape(path: Path) -> str:
 def _concat_cmd(
     frames: list[Path], output_video: Path, fps: int, canvas_w: int, canvas_h: int
 ) -> tuple[list[str], Path]:
-    """Static slideshow: one frame per image. Returns ``(cmd, list_path)``.
-
-    Feed ffmpeg the explicit ordered file list (concat demuxer) instead of a
-    ``%05d.png`` pattern: the image2 demuxer is a strict numeric counter that
-    stops at the first missing index, so any gap/rename silently truncates the
-    video. The concat demuxer just reads the files we hand it, in order.
-    """
+    """Slideshow with one frame per image. Returns ``(cmd, list_path)``."""
     per_frame = 1 / fps
     lines = ["ffconcat version 1.0"]
     for f in frames:
         lines.append(f"file '{_concat_escape(f)}'")
         lines.append(f"duration {per_frame:.6f}")
-    # concat ignores the last entry's duration unless the file is repeated.
+    # Repeat the last frame so ffmpeg honors its duration.
     lines.append(f"file '{_concat_escape(frames[-1])}'")
 
     with tempfile.NamedTemporaryFile(

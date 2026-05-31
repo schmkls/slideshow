@@ -2,13 +2,15 @@
 
     python -m slideshow silhouette IN_DIR  OUT_DIR  [--halo-px N] ...
     python -m slideshow center     IN_DIR  OUT_DIR  [--width N] ...
-    python -m slideshow fade       IN_DIR  OUT_DIR  --effect E [--target T] ...
-    python -m slideshow place      IN_DIR  OUT_DIR  --motion M [--frames N] ...
-    python -m slideshow pick-faces IN_DIR           [--conf C] [--redo]
-    python -m slideshow video      IN_DIR  OUT.mp4  [--fps N] [--fade N]
+    python -m slideshow fade   IN_DIR OUT_DIR --effect E [--target T] ...
+    python -m slideshow linger IN_DIR OUT_DIR [--no-loop] [--target T] ...
+    python -m slideshow place  IN_DIR OUT_DIR --motion M [--frames N] ...
+    python -m slideshow pick-faces   IN_DIR         [--conf C] [--redo]
+    python -m slideshow video        IN_DIR OUT.mp4 [--fps N] [--fade N]
 
 Steps chain through directories, so they compose: e.g.
-silhouette -> center -> video, or fade -> video, or place -> video.
+silhouette -> center -> video, or fade -> video, or place -> video, or
+center -> linger -> video --fade.
 ``pick-faces`` writes a faces.json the --target faces steps read.
 """
 
@@ -19,7 +21,7 @@ import sys
 from pathlib import Path
 
 from . import center, pickfaces, silhouette, video
-from .animate import fade, place
+from .animate import fade, linger, place
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,6 +68,22 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Alpha cutoff for what counts as subject.")
     f.add_argument("--model", default="u2net",
                    help="rembg model (ignored when --target faces).")
+
+    lg = sub.add_parser(
+        "linger",
+        help="Linger each photo's subject into the next photo.",
+    )
+    lg.add_argument("input_dir", type=Path)
+    lg.add_argument("output_dir", type=Path)
+    lg.add_argument("--no-loop", action="store_true",
+                    help="Stop at the last photo instead of looping back to "
+                         "the first.")
+    lg.add_argument("--target", choices=("subject", "faces"), default="subject",
+                    help="What to detect: whole subject (rembg) or faces only.")
+    lg.add_argument("--alpha-thresh", type=int, default=16,
+                    help="Alpha cutoff for what counts as subject.")
+    lg.add_argument("--model", default="u2net",
+                    help="rembg model (ignored when --target faces).")
 
     pl = sub.add_parser(
         "place", help="Expand each photo into a clip moving the subject."
@@ -137,6 +155,16 @@ def main(argv: list[str] | None = None) -> int:
         kept = fade.run(
             args.input_dir, args.output_dir,
             effect=args.effect,
+            alpha_thresh=args.alpha_thresh,
+            model=args.model,
+            target=args.target,
+        )
+        return 0 if kept else 1
+
+    if args.command == "linger":
+        kept = linger.run(
+            args.input_dir, args.output_dir,
+            loop=not args.no_loop,
             alpha_thresh=args.alpha_thresh,
             model=args.model,
             target=args.target,

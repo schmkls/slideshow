@@ -32,12 +32,13 @@ either by activating the venv (`source .venv/bin/activate`) and calling
 With the venv activated:
 
 ```sh
-slideshow silhouette <in_dir>  <out_dir>   # white halo around subject (keeps background)
-slideshow center     <in_dir>  <out_dir>   # scale + center on a canvas
-slideshow fade       <in_dir>  <out_dir>   # two keyframes per photo for a cross-dissolve
-slideshow place      <in_dir>  <out_dir>   # move the subject (shrink/grow/slide/rotate)
-slideshow pick-faces <in_dir>              # pick one face per photo (writes faces.json)
-slideshow video      <in_dir>  <out.mp4>   # encode frames to MP4
+slideshow silhouette   <in_dir>  <out_dir>   # white halo around subject (keeps background)
+slideshow center       <in_dir>  <out_dir>   # scale + center on a canvas
+slideshow fade         <in_dir>  <out_dir>   # two keyframes per photo for a cross-dissolve
+slideshow linger       <in_dir>  <out_dir>   # linger each subject into the next photo
+slideshow place        <in_dir>  <out_dir>   # move the subject (shrink/grow/slide/rotate)
+slideshow pick-faces   <in_dir>              # pick one face per photo (writes faces.json)
+slideshow video        <in_dir>  <out.mp4>   # encode frames to MP4
 ```
 
 Run `slideshow <step> --help` for that step's flags.
@@ -54,6 +55,9 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `fade`       | `--effect` | *(required:* `background` \| `subject`*)* |
+|              | `--target` | `subject` (or `faces`) |
+|              | `--alpha-thresh` / `--model` | `16` / `u2net` |
+| `linger`     | `--no-loop` | off (loops last → first) |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
 | `place`      | `--motion` | *(required:* `shrink` \| `grow` \| `left-to-right` \| `grow-and-rotate`*)* |
@@ -87,6 +91,12 @@ slideshow video ./frames      out.mp4 --fade 30
 # Fade each photo's subject in instead
 slideshow fade  ./photos      ./frames --effect subject
 slideshow video ./frames      out.mp4 --fade 30
+
+# Linger: carry each photo's subject into the next photo, looping back to the
+# first. Center first so the subjects share a canvas.
+slideshow center ./photos    ./centered
+slideshow linger ./centered  ./frames
+slideshow video  ./frames    out.mp4 --fade 20
 
 # Place: grow each photo's subject until it fills the frame, then make a video
 # (plain video — place already rendered every frame, so no --fade)
@@ -146,6 +156,13 @@ compose in any order — `center` finds the subject itself whether or not
   of its clip. `--effect background` writes the subject on black, then the full
   photo; `--effect subject` does the reverse. `video --fade` dissolves between
   each pair, so only two stills per photo are written.
+- **linger** — carries each photo's subject into the next photo. Per transition
+  it writes the keyframes `A → K → B`, where `K` is the next photo with the
+  current subject pasted on top; `video --fade` dissolves the shared-endpoint
+  pairs `(A, K)` and `(K, B)` so the subject arrives in the next scene and then
+  dissolves away as it resolves. Loops back to the first photo unless
+  `--no-loop`. Subjects are composited at their original position, so run
+  `center` first to put every photo on one canvas.
 - **place** — moves the subject geometrically, which a cross-dissolve can't
   fake, so it renders every frame itself (`--frames` per photo) and is played
   by a plain `video`. The subject is detected once, then each frame resizes /
