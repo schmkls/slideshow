@@ -23,9 +23,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..faces import FaceDetector
 from ..images import discover, load_upright, save_png
-from ..segmentation import MaskProvider, Segmenter
+from ..segmentation import MaskProvider, make_provider
 
 
 def _on_black(base: np.ndarray, keep: np.ndarray) -> Image.Image:
@@ -90,15 +89,13 @@ def run(
         return 0
 
     make_endpoints = EFFECTS[effect]
-    provider: MaskProvider = (
-        FaceDetector() if target == "faces" else Segmenter(model)
-    )
+    provider: MaskProvider = make_provider(target, model=model, input_dir=input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     for idx, src in enumerate(photos):
         try:
             img = load_upright(src)
-            mask = provider.subject_alpha(img)
+            mask = provider.subject_alpha(img, src.name)
         except Exception as e:  # noqa: BLE001 - one bad image shouldn't abort the batch
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)
             continue

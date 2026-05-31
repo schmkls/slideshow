@@ -36,6 +36,7 @@ slideshow silhouette <in_dir>  <out_dir>   # white halo around subject (keeps ba
 slideshow center     <in_dir>  <out_dir>   # scale + center on a canvas
 slideshow fade       <in_dir>  <out_dir>   # two keyframes per photo for a cross-dissolve
 slideshow place      <in_dir>  <out_dir>   # move the subject (shrink/grow/slide/rotate)
+slideshow pick-faces <in_dir>              # pick one face per photo (writes faces.json)
 slideshow video      <in_dir>  <out.mp4>   # encode frames to MP4
 ```
 
@@ -59,6 +60,9 @@ Run `slideshow <step> --help` for that step's flags.
 |              | `--frames` | `30` |
 |              | `--target` | `subject` (or `faces`) |
 |              | `--alpha-thresh` / `--model` | `16` / `u2net` |
+| `pick-faces` | `--conf` | `0.5` (min face-detector confidence) |
+|              | `--det-size` | `900` (detector input size; larger = more faces, slower) |
+|              | `--redo` | off (re-pick photos already chosen) |
 | `video`      | `--fps` | `10` |
 |              | `--fade` | `0` (frames per dissolve; use with `fade`) |
 
@@ -97,6 +101,13 @@ slideshow video ./frames      out.mp4
 slideshow center  ./photos    ./centered --target faces
 slideshow video   ./centered  out.mp4
 
+# Several faces per photo? Pick one first, then any --target faces step uses it.
+# pick-faces opens each multi-face photo: arrow keys to choose, Enter to confirm,
+# Esc to skip (single-face photos are auto-chosen). It writes ./photos/faces.json.
+slideshow pick-faces ./photos
+slideshow center     ./photos    ./centered --target faces
+slideshow video      ./centered  out.mp4
+
 # Silhouette, then center, then video
 slideshow silhouette ./photos   ./halo
 slideshow center     ./halo     ./centered
@@ -116,6 +127,21 @@ compose in any order — `center` finds the subject itself whether or not
   centers it on the canvas. With `--target faces` it centers on detected faces
   instead (OpenCV's res10 detector). The letterbox margin shared by every frame
   is then cropped off uniformly (rounded to even dimensions for h264).
+- **pick-faces** — when a photo has several faces, `--target faces` otherwise
+  keys on all of them at once. This interactive step opens each multi-face photo
+  in an OpenCV window and records the choice to a `faces.json` next to the
+  photos: **arrow keys / 1-9** move the highlight, **Enter** confirms the face,
+  **X or Delete** excludes the photo, **Esc** skips choosing (keeps all faces).
+  Single-face photos are auto-chosen; re-runs keep earlier choices unless
+  `--redo`. The `--target faces` steps (center/fade/place) read that sidecar —
+  when run on the same folder — and act on the chosen face alone; an excluded
+  photo (`null` in the sidecar) yields an empty mask, so those steps drop it.
+  Photos without an entry fall back to all faces.
+
+  Detection (res10) letterboxes each photo onto a `--det-size` square (default
+  900) rather than the model's native 300, so small faces in group shots aren't
+  squashed away; overlapping boxes are merged with NMS. Raise `--det-size` (e.g.
+  1200) to find more/smaller faces, or `--conf` to drop weak false positives.
 - **fade** — detects the subject once per photo and writes the two keyframes
   of its clip. `--effect background` writes the subject on black, then the full
   photo; `--effect subject` does the reverse. `video --fade` dissolves between

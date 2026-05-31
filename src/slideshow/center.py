@@ -16,9 +16,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from .faces import FaceDetector
 from .images import discover, load_upright, save_png
-from .segmentation import MaskProvider, Segmenter, alpha_bbox
+from .segmentation import MaskProvider, alpha_bbox, make_provider
 
 PasteBox = tuple[int, int, int, int]  # (x, y, w, h) of the image on the canvas
 
@@ -32,13 +31,15 @@ def scale_and_center(
     subject_frac: float,
     alpha_thresh: int,
     background: str,
+    key: str | None = None,
 ) -> tuple[Image.Image, PasteBox] | None:
     """Scale + center one image on the canvas. ``None`` if nothing detected.
 
     ``provider`` decides what to center on: the whole subject (``Segmenter``)
-    or faces only (``FaceDetector``).
+    or faces only (``FaceDetector``). ``key`` is the photo's filename, used by
+    a face provider to apply a saved single-face selection.
     """
-    alpha = provider.subject_alpha(img)
+    alpha = provider.subject_alpha(img, key)
     bbox = alpha_bbox(alpha, alpha_thresh)
     if bbox is None:
         return None
@@ -102,9 +103,7 @@ def run(
     if not photos:
         return 0
 
-    provider: MaskProvider = (
-        FaceDetector() if target == "faces" else Segmenter(model)
-    )
+    provider: MaskProvider = make_provider(target, model=model, input_dir=input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     kept = 0
     boxes: list[PasteBox] = []
@@ -119,6 +118,7 @@ def run(
                 subject_frac=subject_frac,
                 alpha_thresh=alpha_thresh,
                 background=background,
+                key=src.name,
             )
         except Exception as e:  # noqa: BLE001 - one bad image shouldn't abort the batch
             print(f"{src.name}: error ({e}), skipped", file=sys.stderr)

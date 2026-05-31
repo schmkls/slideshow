@@ -4,10 +4,12 @@
     python -m slideshow center     IN_DIR  OUT_DIR  [--width N] ...
     python -m slideshow fade       IN_DIR  OUT_DIR  --effect E [--target T] ...
     python -m slideshow place      IN_DIR  OUT_DIR  --motion M [--frames N] ...
+    python -m slideshow pick-faces IN_DIR           [--conf C] [--redo]
     python -m slideshow video      IN_DIR  OUT.mp4  [--fps N] [--fade N]
 
 Steps chain through directories, so they compose: e.g.
 silhouette -> center -> video, or fade -> video, or place -> video.
+``pick-faces`` writes a faces.json the --target faces steps read.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import center, silhouette, video
+from . import center, pickfaces, silhouette, video
 from .animate import fade, place
 
 
@@ -81,6 +83,19 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--model", default="u2net",
                     help="rembg model (ignored when --target faces).")
 
+    pf = sub.add_parser(
+        "pick-faces",
+        help="Choose which detected face is the subject (writes faces.json).",
+    )
+    pf.add_argument("input_dir", type=Path)
+    pf.add_argument("--conf", type=float, default=0.5,
+                    help="Min detector confidence (0..1) for a face.")
+    pf.add_argument("--det-size", type=int, default=900,
+                    help="Detector input size; larger finds more (and smaller) "
+                         "faces, but is slower. Try 1200 for dense crowds.")
+    pf.add_argument("--redo", action="store_true",
+                    help="Re-pick photos already in faces.json.")
+
     v = sub.add_parser("video", help="Encode a folder of frames into an MP4.")
     v.add_argument("input_dir", type=Path)
     v.add_argument("output_video", type=Path)
@@ -138,6 +153,13 @@ def main(argv: list[str] | None = None) -> int:
             target=args.target,
         )
         return 0 if kept else 1
+
+    if args.command == "pick-faces":
+        chosen = pickfaces.run(
+            args.input_dir, conf_thresh=args.conf,
+            det_size=args.det_size, redo=args.redo,
+        )
+        return 0 if chosen else 1
 
     if args.command == "video":
         kept = video.run(args.input_dir, args.output_video,
