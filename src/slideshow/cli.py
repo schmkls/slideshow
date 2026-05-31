@@ -2,11 +2,12 @@
 
     python -m slideshow silhouette IN_DIR  OUT_DIR  [--halo-px N] ...
     python -m slideshow center     IN_DIR  OUT_DIR  [--width N] ...
-    python -m slideshow animate    IN_DIR  OUT_DIR  --effect E [--target T] ...
+    python -m slideshow fade       IN_DIR  OUT_DIR  --effect E [--target T] ...
+    python -m slideshow place      IN_DIR  OUT_DIR  --motion M [--frames N] ...
     python -m slideshow video      IN_DIR  OUT.mp4  [--fps N] [--fade N]
 
 Steps chain through directories, so they compose: e.g.
-silhouette -> center -> video, or animate -> video.
+silhouette -> center -> video, or fade -> video, or place -> video.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import animate, center, silhouette, video
+from . import center, silhouette, video
+from .animate import fade, place
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,19 +51,35 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--model", default="u2net",
                    help="rembg model (ignored when --target faces).")
 
-    a = sub.add_parser(
-        "animate", help="Expand each photo into an animated clip of frames."
+    f = sub.add_parser(
+        "fade", help="Expand each photo into the two keyframes of a fade clip."
     )
-    a.add_argument("input_dir", type=Path)
-    a.add_argument("output_dir", type=Path)
-    a.add_argument("--effect", required=True, choices=tuple(animate.EFFECTS),
-                   help="Animation effect to apply to each photo.")
-    a.add_argument("--target", choices=("subject", "faces"), default="subject",
+    f.add_argument("input_dir", type=Path)
+    f.add_argument("output_dir", type=Path)
+    f.add_argument("--effect", required=True, choices=tuple(fade.EFFECTS),
+                   help="Which layer fades in: background or subject.")
+    f.add_argument("--target", choices=("subject", "faces"), default="subject",
                    help="What to detect: whole subject (rembg) or faces only.")
-    a.add_argument("--alpha-thresh", type=int, default=16,
+    f.add_argument("--alpha-thresh", type=int, default=16,
                    help="Alpha cutoff for what counts as subject.")
-    a.add_argument("--model", default="u2net",
+    f.add_argument("--model", default="u2net",
                    help="rembg model (ignored when --target faces).")
+
+    pl = sub.add_parser(
+        "place", help="Expand each photo into a clip moving the subject."
+    )
+    pl.add_argument("input_dir", type=Path)
+    pl.add_argument("output_dir", type=Path)
+    pl.add_argument("--motion", required=True, choices=tuple(place.MOTIONS),
+                    help="How the subject moves across the clip.")
+    pl.add_argument("--frames", type=int, default=30,
+                    help="Frames rendered per photo (play with plain video).")
+    pl.add_argument("--target", choices=("subject", "faces"), default="subject",
+                    help="What to detect: whole subject (rembg) or faces only.")
+    pl.add_argument("--alpha-thresh", type=int, default=16,
+                    help="Alpha cutoff for what counts as subject.")
+    pl.add_argument("--model", default="u2net",
+                    help="rembg model (ignored when --target faces).")
 
     v = sub.add_parser("video", help="Encode a folder of frames into an MP4.")
     v.add_argument("input_dir", type=Path)
@@ -69,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--fps", type=int, default=10, help="Frames per second.")
     v.add_argument("--fade", type=int, default=0,
                    help="Cross-dissolve each (start, end) input pair over N "
-                        "frames (0: each image is one frame). Use with animate.")
+                        "frames (0: each image is one frame). Use with fade.")
 
     return p
 
@@ -100,10 +118,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0 if kept else 1
 
-    if args.command == "animate":
-        kept = animate.run(
+    if args.command == "fade":
+        kept = fade.run(
             args.input_dir, args.output_dir,
             effect=args.effect,
+            alpha_thresh=args.alpha_thresh,
+            model=args.model,
+            target=args.target,
+        )
+        return 0 if kept else 1
+
+    if args.command == "place":
+        kept = place.run(
+            args.input_dir, args.output_dir,
+            motion=args.motion,
+            frames=args.frames,
             alpha_thresh=args.alpha_thresh,
             model=args.model,
             target=args.target,

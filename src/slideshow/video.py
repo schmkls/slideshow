@@ -4,7 +4,7 @@ In: a folder of images in ``discover`` order (any names or numbering; gaps
 are fine). Out: an H.264 MP4.
 
 By default each image is one frame. With ``--fade N`` the folder is read as
-``(start, end)`` keyframe pairs (what ``animate`` writes) and each pair is
+``(start, end)`` keyframe pairs (what ``fade`` writes) and each pair is
 cross-dissolved into an N-frame clip.
 
 A video has no alpha and one fixed size, so each frame is flattened onto

@@ -1,4 +1,4 @@
-"""Step: turn each photo into the two keyframes of an animated clip.
+"""Step: turn each photo into the two keyframes of a fade clip.
 
 In: a folder of photos. Out: a folder of ``NNNNN.png`` stills, two per
 photo — the start and end of a fade. ``video --fade N`` cross-dissolves each
@@ -9,9 +9,9 @@ two endpoints from that detection.
 
 Effects (``--effect``):
 
-- ``fade-background`` — start: subject on black; end: the full photo.
+- ``background`` — start: subject on black; end: the full photo.
   Dissolved, the background fades in while the subject stays solid.
-- ``fade-subject`` — start: background on black; end: the full photo.
+- ``subject`` — start: background on black; end: the full photo.
   Dissolved, the subject fades in while the background stays solid.
 """
 
@@ -23,9 +23,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from .faces import FaceDetector
-from .images import discover, load_upright, save_png
-from .segmentation import MaskProvider, Segmenter
+from ..faces import FaceDetector
+from ..images import discover, load_upright, save_png
+from ..segmentation import MaskProvider, Segmenter
 
 
 def _on_black(base: np.ndarray, keep: np.ndarray) -> Image.Image:
@@ -66,8 +66,8 @@ def fade_subject(
 
 # effect name -> function(base_rgb, subject_mask) -> (start_img, end_img)
 EFFECTS = {
-    "fade-background": fade_background,
-    "fade-subject": fade_subject,
+    "background": fade_background,
+    "subject": fade_subject,
 }
 
 
